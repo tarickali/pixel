@@ -64,8 +64,9 @@ void Game::initialize() {
 void Game::setup() {
     // Add systems
     coordinator->addSystem<PhysicsSystem>();
-
+ 
     Entity player = coordinator->create();
+    coordinator->tagEntity(player, "player");
 
     coordinator->addComponent<TransformComponent>(
         player,

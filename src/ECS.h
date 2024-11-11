@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <deque>
 #include <typeindex>
+#include <optional>
 
 ////////////////////////////////////////////////////////////////////////////////
 // Component Signature
@@ -38,7 +39,7 @@ class Entity {
         Entity(EntityId id) { this->id = id; }
         Entity(const Entity &entity) = default;
 
-        EntityId getId() { return id; }
+        EntityId getId() const { return id; }
 
         ////////////////////////////////////////////////////////////////////////
         // Operator overloading
@@ -258,6 +259,14 @@ class Coordinator {
         // component is turned "on" for each entity.
         // [ Vector index = entity id ]
         std::vector<ComponentSignature> entityComponentSignatures;
+        
+        ////////////////////////////////////////////////////////////////////////
+        // Tag and Group management
+        ////////////////////////////////////////////////////////////////////////
+        std::unordered_map<std::string, Entity> entityPerTag;
+        std::unordered_map<EntityId, std::string> tagPerEntityId;
+        std::unordered_map<std::string, std::set<Entity>> entitiesPerGroup;
+        std::unordered_map<EntityId, std::set<std::string>> groupsPerEntityId;
     
     public:
         Coordinator();
@@ -291,6 +300,22 @@ class Coordinator {
         void addEntityToSystems(Entity entity);
         void removeEntityFromSystems(Entity entity);
 
+        ////////////////////////////////////////////////////////////////////////
+        // Tag and Group management
+        ////////////////////////////////////////////////////////////////////////
+        void tagEntity(Entity entity, const std::string &tag);
+        bool entityHasTag(Entity entity, const std::string &tag) const;
+        std::optional<Entity> getEntityByTag(const std::string &tag) const;
+        void removeEntityTag(Entity entity);
+        void removeTag(const std::string &tag);
+
+        void groupEntity(Entity entity, const std::string &group);
+        bool entityBelongsToGroup(Entity entity, const std::string &group);
+        std::vector<Entity> getEntitiesByGroup(const std::string &group);
+        void removeEntityGroup(Entity entity, const std::string &group);
+        void removeEntityGroups(Entity entity);
+        void removeGroup(const std::string &group);
+        
         ////////////////////////////////////////////////////////////////////////
         // General
         ////////////////////////////////////////////////////////////////////////

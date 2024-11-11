@@ -1,6 +1,7 @@
 #include "ECS.h"
 
 #include <spdlog/spdlog.h>
+#include <iostream>
 
 ////////////////////////////////////////////////////////////////////////////////
 // Initialize static members
@@ -98,6 +99,134 @@ void Coordinator::removeEntityFromSystems(Entity entity) {
     }
 }
 
+void Coordinator::tagEntity(Entity entity, const std::string &tag) {
+    if (entityPerTag.find(tag) == entityPerTag.end()) {
+        entityPerTag.emplace(tag, entity);
+        tagPerEntityId.emplace(entity.getId(), tag);
+    }
+
+    // std::cout << "Current tags after addition" << std::endl;
+    // for (auto entityTag : tagPerEntityId) {
+    //     std::cout << "Entity: " << entityTag.first << ", Tag: " << entityTag.second << std::endl;
+    // }
+}
+
+bool Coordinator::entityHasTag(Entity entity, const std::string &tag) const {
+    return (
+        entityPerTag.find(tag) != entityPerTag.end()
+        &&
+        entityPerTag.at(tag) == entity
+    );
+}
+
+std::optional<Entity> Coordinator::getEntityByTag(const std::string &tag) const {
+    if (entityPerTag.find(tag) == entityPerTag.end()) {
+        return std::nullopt;
+    }
+    return entityPerTag.at(tag);
+}
+
+void Coordinator::removeEntityTag(Entity entity) {
+    auto entityTag = tagPerEntityId.find(entity.getId());
+    if (entityTag != tagPerEntityId.end()) {
+        tagPerEntityId.erase(entityTag->first);
+        entityPerTag.erase(entityTag->second);
+    }
+
+    // std::cout << "Current tags after removal" << std::endl;
+    // for (auto entityTag : tagPerEntityId) {
+    //     std::cout << "Entity: " << entityTag.first << ", Tag: " << entityTag.second << std::endl;
+    // }
+}
+
+void Coordinator::removeTag(const std::string &tag) {
+    auto tagEntity = entityPerTag.find(tag);
+    if (tagEntity != entityPerTag.end()) {
+        entityPerTag.erase(tagEntity->first);
+        tagPerEntityId.erase(tagEntity->second.getId());
+    }
+}
+
+void Coordinator::groupEntity(Entity entity, const std::string &group) {
+    if (entitiesPerGroup.find(group) == entitiesPerGroup.end()) {
+        entitiesPerGroup.emplace(group, std::set<Entity>());
+    }
+    if (groupsPerEntityId.find(entity.getId()) == groupsPerEntityId.end()) {
+        groupsPerEntityId.emplace(entity.getId(), std::set<std::string>());
+    }
+
+    entitiesPerGroup.at(group).insert(entity);
+    groupsPerEntityId.at(entity.getId()).insert(group);
+}
+
+bool Coordinator::entityBelongsToGroup(Entity entity, const std::string &group) {
+    if (entitiesPerGroup.find(group) == entitiesPerGroup.end()) {
+        return false;
+    }
+    auto groupEntities = entitiesPerGroup.at(group);
+    return groupEntities.find(entity) != groupEntities.end();
+}
+
+std::vector<Entity> Coordinator::getEntitiesByGroup(const std::string &group) {
+    if (entitiesPerGroup.find(group) == entitiesPerGroup.end()) {
+        return std::vector<Entity>();
+    }
+    // TODO: FIXME: Does this need to return a reference?
+    auto groupEntities = entitiesPerGroup.at(group);
+    return std::vector<Entity>(groupEntities.begin(), groupEntities.end());
+}
+
+void Coordinator::removeEntityGroup(Entity entity, const std::string &group) {
+    // Check if entity is registered in any group
+    if (groupsPerEntityId.find(entity.getId()) != groupsPerEntityId.end()) {
+        // Get all the groups the entity is in
+        auto &entityGroups = groupsPerEntityId.at(entity.getId());
+        // Get all the entities the group contains
+        auto &groupEntities = entitiesPerGroup.at(group);
+        // Check if the entity is registered in the provided group
+        if (entityGroups.find(group) != entityGroups.end()) {
+            // Unregister the entity from the group
+            entityGroups.erase(group);
+            groupEntities.erase(entity);
+
+            // Remove the entity from the group system if no groups are applied
+            if (entityGroups.empty()) {
+                groupsPerEntityId.erase(entity.getId());
+            }
+            // Remove the group from the group system if no entites are contained
+            if (groupEntities.empty()) {
+                entitiesPerGroup.erase(group);
+            }
+        }
+    }
+}
+
+void Coordinator::removeEntityGroups(Entity entity) {
+    if (groupsPerEntityId.find(entity.getId()) != groupsPerEntityId.end()) {
+        auto entityGroups = groupsPerEntityId.at(entity.getId());
+        for (auto group : entityGroups) {
+            entitiesPerGroup.at(group).erase(entity);
+            if (entitiesPerGroup.at(group).empty()) {
+                entitiesPerGroup.erase(group);
+            }
+        }
+        groupsPerEntityId.erase(entity.getId());
+    }
+}
+
+void Coordinator::removeGroup(const std::string &group) {
+    if (entitiesPerGroup.find(group) != entitiesPerGroup.end()) {
+        auto groupEntities = entitiesPerGroup.at(group);
+        for (auto entity : groupEntities) {
+            groupsPerEntityId.at(entity.getId()).erase(group);
+            if (groupsPerEntityId.at(entity.getId()).empty()) {
+                groupsPerEntityId.erase(entity.getId());
+            }
+        }
+        entitiesPerGroup.erase(group);
+    }
+}
+
 void Coordinator::update() {
     for (auto entity : entitiesToBeCreated) {
         addEntityToSystems(entity);
@@ -120,6 +249,10 @@ void Coordinator::update() {
 
         // Make the entity id available to be reused
         freeIds.push_back(entity.getId());
+
+        // Remove all traces of entity in tags and groups
+        removeEntityTag(entity);
+        removeEntityGroups(entity);
     }
     entitiesToBeDestroyed.clear();
 }
