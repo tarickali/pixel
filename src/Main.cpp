@@ -1,7 +1,13 @@
 #include <iostream>
 
+#include "Game.h"
+
 int main(int argc, char* argv[]) {
-    std::cout << "Welcome to pixel!" << std::endl;
+    Game game;
+
+    game.initialize();
+    game.run();
+    game.destroy();
 
     return 0;
 }
